@@ -6,24 +6,62 @@ Discord bot for fair allocation of the daily alliance train and VIP seat in Last
 
 1. Create a Discord bot at https://discord.com/developers/applications
 2. Enable **Message Content Intent** under Bot → Privileged Gateway Intents
-3. Copy `.env.example` to `.env` and fill in your values:
+3. Invite the bot (replace `YOUR_CLIENT_ID`):
+   ```
+   https://discord.com/api/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=84992&scope=bot%20applications.commands
+   ```
+4. Clone and install:
+   ```bash
+   git clone https://github.com/feldsys/LWTrain.git
+   cd LWTrain
+   npm install
+   ```
+5. Copy `.env.example` to `.env` and fill in your values:
    ```
    DISCORD_TOKEN=your_bot_token
    DISCORD_CLIENT_ID=your_application_id
    DISCORD_GUILD_ID=your_server_id
    ```
-4. Install dependencies: `npm install`
-5. Register slash commands: `npm run deploy-commands`
-6. Start the bot: `npm start`
-7. In Discord: configure channels with `/train-config`
+6. Register slash commands: `npm run deploy-commands`
+7. Start the bot: `npm start`
+8. In Discord: `/train-config set-admin-channel` and `/train-config set-announcement-channel`
 
-### Invite URL
+## Deployment (Ubuntu Server)
 
+### Fresh install
+```bash
+git clone https://github.com/feldsys/LWTrain.git
+cd LWTrain
+npm install
+cp .env.example .env
+nano .env  # fill in Token, Client ID, Guild ID
+npm run deploy-commands
 ```
-https://discord.com/api/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=84992&scope=bot%20applications.commands
+
+### Migration from another machine
+Copy the entire folder, then:
+```bash
+cd LWTrain
+rm -rf node_modules
+npm install           # reinstall for target OS (native binaries)
+```
+Everything is preserved: `data/lottery.db` (players, rankings, draws, pity counters), `.env` (config), channel settings.
+
+### Run with PM2 (recommended)
+```bash
+sudo npm install -g pm2
+pm2 start src/index.js --name "TrainLottery"
+pm2 save
+pm2 startup           # follow the printed command to enable auto-start on boot
 ```
 
-Permissions: View Channels, Send Messages, Embed Links, Read Message History.
+PM2 commands:
+| Command | Description |
+|---|---|
+| `pm2 logs TrainLottery` | View live logs |
+| `pm2 restart TrainLottery` | Restart the bot |
+| `pm2 stop TrainLottery` | Stop the bot |
+| `pm2 status` | Show status |
 
 ## Commands
 
@@ -55,18 +93,20 @@ Permissions: View Channels, Send Messages, Embed Links, Read Message History.
 ## Daily Workflow
 
 1. **Paste ranking** in the admin channel (format: `Name Points`, one per line)
-2. Bot parses and shows a **date selector** (7 days back + 14 days ahead)
-3. Select the date → **preview** with pity counters, weights, probabilities
-4. **Confirm** → draw is scheduled, announcement posted in public channel
-5. At draw time (or via `/train-draw`) → **winners announced** with rich embed
+2. **Step 1/2**: Bot asks "Which day is this ranking from?" (last 7 days, used dates hidden)
+3. **Step 2/2**: Bot asks "Which day should the train run?" (next 14 days, used dates hidden)
+4. **Preview** with pity counters, weights, and win probabilities
+5. **Confirm** → draw is scheduled, announcement posted in public channel
+6. At draw time (or via `/train-draw`) → **winners announced** with rich embed
 
-Rankings can also be posted without rank numbers:
+No date can be used twice — if a date is already assigned as a ranking date or train date, it won't appear in either dropdown.
+
+### Ranking Format
 ```
 PlayerAlpha 12345
 PlayerBeta 11000
 PlayerGamma 9500
 ```
-
 Or with rank numbers:
 ```
 1. PlayerAlpha 12345
@@ -80,7 +120,7 @@ Or with rank numbers:
 - **Base weight** = daily points (each point is a lottery ticket)
 - **Pity multiplier** = `1 + (participations_without_win² × 0.05)`
 - After 20 participations without winning: ~21x multiplier (~50% chance per draw)
-- **Hard pity at 25**: guaranteed win
+- **Hard pity at 25**: guaranteed win (highest pity wins; tiebreak by points)
 
 ### Multiplier Table
 | Pity Counter | Multiplier |
@@ -93,22 +133,24 @@ Or with rank numbers:
 | 25 | **Guaranteed** |
 
 ### Rules
-- **Train cooldown**: Winner can't win train again for 14 days
+- **Train cooldown**: Winner can't win train again for 7 days
 - **VIP**: No cooldown, separate pity counter
 - **Separate pools**: Train winner is excluded from VIP draw
 - **Cooldown players still accumulate pity** for when they become eligible again
 - Players not in the ranking on a given day: pity unchanged
+- If multiple players reach hard pity (25): highest counter wins, tiebreak by points
 
 ## Backfill & Redraw
 
-- **Backfill**: Paste a ranking and select a past date from the dropdown
-- **Advance planning**: Select a future date (up to 14 days ahead)
-- **Redraw** (`/train-redraw`): Reuse a past ranking for a new day — perfect for savings weeks where the same ranking applies for a second week
+- **Backfill**: Paste a ranking and select a past date (Step 1), then assign it to a future train date (Step 2)
+- **Advance planning**: Assign draws up to 14 days ahead
+- **Redraw** (`/train-redraw`): Two-step dropdown to reuse a past ranking for a new day — perfect for savings weeks where the same ranking applies for a second week. All fairness rules (pity, cooldowns) still apply.
 
 ## Tech Stack
 
 - **Runtime**: Node.js
 - **Discord**: discord.js v14
-- **Database**: SQLite (better-sqlite3)
+- **Database**: SQLite (better-sqlite3) — single file at `data/lottery.db`
 - **Scheduling**: node-schedule
 - **Config**: dotenv
+- **Process Manager**: PM2 (recommended for production)
