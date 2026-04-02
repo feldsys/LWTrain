@@ -26,15 +26,6 @@ module.exports = {
 };
 
 async function checkMissedDraw(client) {
-    const today = new Date().toISOString().split('T')[0];
-    const pending = getPendingRanking(today);
-
-    if (!pending || pending.status !== 'confirmed') return;
-
-    // Check if draw already happened
-    const draws = getDrawsForDate(today);
-    if (draws.length > 0) return;
-
     // Check if we're past the draw time
     const drawTime = getConfigValue('drawTime', defaults.drawTime);
     const [drawH, drawM] = drawTime.split(':').map(Number);
@@ -44,27 +35,41 @@ async function checkMissedDraw(client) {
 
     if (nowMinutes <= drawMinutes) return;
 
-    console.log('[READY] Missed draw detected, executing now...');
+    // Find ALL confirmed rankings that haven't been drawn
+    const { getDb } = require('../database/connection');
+    const db = getDb();
+    const missedDraws = db.prepare(`
+        SELECT date FROM pending_rankings
+        WHERE status = 'confirmed'
+        AND NOT EXISTS (SELECT 1 FROM draw_history dh WHERE dh.date = pending_rankings.date)
+        ORDER BY date ASC
+    `).all();
 
-    try {
-        const result = performDailyDraw();
-        if (!result) return;
+    if (missedDraws.length === 0) return;
 
-        const announcementId = getConfigValue('announcementChannelId', defaults.announcementChannelId);
-        const adminId = getConfigValue('adminChannelId', defaults.adminChannelId);
+    console.log(`[READY] ${missedDraws.length} missed draw(s) detected, executing now...`);
 
-        if (announcementId) {
-            const ch = await client.channels.fetch(announcementId);
-            if (ch) await ch.send({ embeds: [buildResultEmbed(result)] });
+    const announcementId = getConfigValue('announcementChannelId', defaults.announcementChannelId);
+    const adminId = getConfigValue('adminChannelId', defaults.adminChannelId);
+
+    for (const { date } of missedDraws) {
+        try {
+            const result = performDailyDraw(date);
+            if (!result) continue;
+
+            if (announcementId) {
+                const ch = await client.channels.fetch(announcementId);
+                if (ch) await ch.send({ embeds: [buildResultEmbed(result)] });
+            }
+            if (adminId) {
+                const ch = await client.channels.fetch(adminId);
+                if (ch) await ch.send({ content: `**Missed draw recovered (${date}):**`, embeds: [buildAdminResultEmbed(result)] });
+            }
+
+            console.log(`[READY] Missed draw ${date} recovered: Train=${result.trainWinner?.name}, VIP=${result.vipWinner?.name}`);
+        } catch (err) {
+            console.error(`[READY] Failed to recover missed draw ${date}:`, err);
         }
-        if (adminId) {
-            const ch = await client.channels.fetch(adminId);
-            if (ch) await ch.send({ content: '**Missed draw recovered on startup:**', embeds: [buildAdminResultEmbed(result)] });
-        }
-
-        console.log(`[READY] Missed draw recovered: Train=${result.trainWinner?.name}, VIP=${result.vipWinner?.name}`);
-    } catch (err) {
-        console.error('[READY] Failed to recover missed draw:', err);
     }
 }
 

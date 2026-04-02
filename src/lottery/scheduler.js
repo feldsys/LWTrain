@@ -26,12 +26,12 @@ function reschedule() {
 
     const [hour, minute] = drawTime.split(':').map(Number);
 
-    // Schedule daily recurring draw for "today's" ranking
+    // Schedule daily recurring draw - executes ALL confirmed pending rankings
     const drawRule = new schedule.RecurrenceRule();
     drawRule.hour = hour;
     drawRule.minute = minute;
     drawRule.tz = timezone;
-    drawJob = schedule.scheduleJob(drawRule, () => executeDrawForDate(new Date().toISOString().split('T')[0]));
+    drawJob = schedule.scheduleJob(drawRule, () => executeAllPendingDraws());
 
     // Schedule countdown
     let countdownMin = minute - countdownMinutes;
@@ -107,6 +107,37 @@ function scheduleOneDraw(client, dateStr) {
     console.log(`[SCHEDULER] One-off draw for ${dateStr} scheduled at ${drawDate.toLocaleTimeString()}`);
 
     return drawDate;
+}
+
+/**
+ * Execute ALL confirmed pending rankings that haven't been drawn yet.
+ * Called by the daily recurring job at draw time.
+ */
+async function executeAllPendingDraws() {
+    const { getDb } = require('../database/connection');
+    const db = getDb();
+
+    const pendingDraws = db.prepare(`
+        SELECT date FROM pending_rankings
+        WHERE status = 'confirmed'
+        AND NOT EXISTS (SELECT 1 FROM draw_history dh WHERE dh.date = pending_rankings.date)
+        ORDER BY date ASC
+    `).all();
+
+    if (pendingDraws.length === 0) {
+        console.log('[SCHEDULER] No pending draws at scheduled time');
+        return;
+    }
+
+    console.log(`[SCHEDULER] Executing ${pendingDraws.length} pending draw(s)`);
+
+    for (const { date } of pendingDraws) {
+        await executeDrawForDate(date);
+        // Small delay between multiple draws to avoid rate limits
+        if (pendingDraws.length > 1) {
+            await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+    }
 }
 
 async function sendCountdown() {
