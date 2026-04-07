@@ -36,13 +36,29 @@ module.exports = {
                     opt.setName('vip').setDescription('Top N for VIP (default: 20)').setRequired(true).setMinValue(3).setMaxValue(50)))
         .addSubcommand(sub =>
             sub.setName('set-pity')
-                .setDescription('Configure pity system parameters')
+                .setDescription('Configure train pity system parameters')
                 .addNumberOption(opt =>
-                    opt.setName('coefficient').setDescription('Pity coefficient (default: 0.05)').setRequired(false))
+                    opt.setName('coefficient').setDescription('Train pity coefficient (default: 0.05)').setRequired(false))
                 .addIntegerOption(opt =>
-                    opt.setName('exponent').setDescription('Pity exponent (default: 2)').setRequired(false))
+                    opt.setName('exponent').setDescription('Train pity exponent (default: 2)').setRequired(false))
                 .addIntegerOption(opt =>
-                    opt.setName('hard-pity').setDescription('Hard pity threshold (default: 25)').setRequired(false)))
+                    opt.setName('hard-pity').setDescription('Train hard pity threshold (default: 25)').setRequired(false)))
+        .addSubcommand(sub =>
+            sub.setName('set-vip-pity')
+                .setDescription('Configure VIP pity system parameters')
+                .addNumberOption(opt =>
+                    opt.setName('coefficient').setDescription('VIP pity coefficient (default: 0.03)').setRequired(false))
+                .addIntegerOption(opt =>
+                    opt.setName('exponent').setDescription('VIP pity exponent (default: 2)').setRequired(false))
+                .addIntegerOption(opt =>
+                    opt.setName('hard-pity').setDescription('VIP hard pity threshold (default: 30)').setRequired(false)))
+        .addSubcommand(sub =>
+            sub.setName('set-cooldown')
+                .setDescription('Configure cooldown days')
+                .addIntegerOption(opt =>
+                    opt.setName('train').setDescription('Train cooldown days (default: 7)').setRequired(false).setMinValue(0).setMaxValue(30))
+                .addIntegerOption(opt =>
+                    opt.setName('vip').setDescription('VIP cooldown days (default: 7)').setRequired(false).setMinValue(0).setMaxValue(30)))
         .addSubcommand(sub =>
             sub.setName('show')
                 .setDescription('Show current configuration')),
@@ -90,7 +106,25 @@ module.exports = {
                 if (coeff !== null) setConfig('pityCoefficient', coeff);
                 if (exp !== null) setConfig('pityExponent', exp);
                 if (hard !== null) setConfig('hardPityThreshold', hard);
-                await interaction.reply(`Pity settings updated: coefficient=${coeff ?? 'unchanged'}, exponent=${exp ?? 'unchanged'}, hard pity=${hard ?? 'unchanged'}.`);
+                await interaction.reply(`Train pity updated: coefficient=${coeff ?? 'unchanged'}, exponent=${exp ?? 'unchanged'}, hard pity=${hard ?? 'unchanged'}.`);
+                break;
+            }
+            case 'set-vip-pity': {
+                const coeff = interaction.options.getNumber('coefficient');
+                const exp = interaction.options.getInteger('exponent');
+                const hard = interaction.options.getInteger('hard-pity');
+                if (coeff !== null) setConfig('vipPityCoefficient', coeff);
+                if (exp !== null) setConfig('vipPityExponent', exp);
+                if (hard !== null) setConfig('vipHardPityThreshold', hard);
+                await interaction.reply(`VIP pity updated: coefficient=${coeff ?? 'unchanged'}, exponent=${exp ?? 'unchanged'}, hard pity=${hard ?? 'unchanged'}.`);
+                break;
+            }
+            case 'set-cooldown': {
+                const train = interaction.options.getInteger('train');
+                const vip = interaction.options.getInteger('vip');
+                if (train !== null) setConfig('trainCooldownDays', train);
+                if (vip !== null) setConfig('vipCooldownDays', vip);
+                await interaction.reply(`Cooldown updated: train=${train ?? 'unchanged'}, vip=${vip ?? 'unchanged'}.`);
                 break;
             }
             case 'show': {
@@ -107,10 +141,13 @@ module.exports = {
                         { name: 'Draw Time', value: `${configMap.drawTime || defaults.drawTime} ${configMap.timezone || defaults.timezone}`, inline: true },
                         { name: 'Train Pool', value: `Top ${configMap.trainPoolSize || defaults.trainPoolSize}`, inline: true },
                         { name: 'VIP Pool', value: `Top ${configMap.vipPoolSize || defaults.vipPoolSize}`, inline: true },
-                        { name: 'Cooldown', value: `${configMap.trainCooldownDays || defaults.trainCooldownDays} days`, inline: true },
-                        { name: 'Pity Coefficient', value: `${configMap.pityCoefficient || defaults.pityCoefficient}`, inline: true },
-                        { name: 'Pity Exponent', value: `${configMap.pityExponent || defaults.pityExponent}`, inline: true },
-                        { name: 'Hard Pity', value: `${configMap.hardPityThreshold || defaults.hardPityThreshold} participations`, inline: true },
+                        { name: '\u200b', value: '\u200b', inline: true },
+                        { name: 'Train Cooldown', value: `${configMap.trainCooldownDays || defaults.trainCooldownDays} days`, inline: true },
+                        { name: 'VIP Cooldown', value: `${configMap.vipCooldownDays || defaults.vipCooldownDays} days`, inline: true },
+                        { name: '\u200b', value: '\u200b', inline: true },
+                        { name: 'Train Pity', value: `coeff: ${configMap.pityCoefficient || defaults.pityCoefficient}\nexp: ${configMap.pityExponent || defaults.pityExponent}\nhard: ${configMap.hardPityThreshold || defaults.hardPityThreshold}`, inline: true },
+                        { name: 'VIP Pity', value: `coeff: ${configMap.vipPityCoefficient || defaults.vipPityCoefficient}\nexp: ${configMap.vipPityExponent || defaults.vipPityExponent}\nhard: ${configMap.vipHardPityThreshold || defaults.vipHardPityThreshold}`, inline: true },
+                        { name: '\u200b', value: '\u200b', inline: true },
                     );
 
                 await interaction.reply({ embeds: [embed] });

@@ -14,11 +14,17 @@ module.exports = {
 
     // Cooldown
     trainCooldownDays: 7,
+    vipCooldownDays: 7,
 
-    // Pity system
+    // Train pity system
     pityCoefficient: 0.05,
     pityExponent: 2,
     hardPityThreshold: 25,
+
+    // VIP pity system (slower buildup, hard pity at 30)
+    vipPityCoefficient: 0.03,
+    vipPityExponent: 2,
+    vipHardPityThreshold: 30,
 
     // Display
     showProbabilities: true,

@@ -30,6 +30,10 @@ function calculateWeights(entries, config) {
         pityExponent,
         hardPityThreshold,
         trainCooldownDays,
+        vipCooldownDays,
+        vipPityCoefficient,
+        vipPityExponent,
+        vipHardPityThreshold,
         trainPoolSize,
         vipPoolSize,
     } = config;
@@ -41,16 +45,16 @@ function calculateWeights(entries, config) {
         const trainPity = entry.train_pity_counter || 0;
         const vipPity = entry.vip_pity_counter || 0;
 
-        // Pity multipliers: 1 + (counter ^ exponent) * coefficient
+        // Pity multipliers (train and VIP use separate parameters)
         const trainPityMultiplier = 1 + Math.pow(trainPity, pityExponent) * pityCoefficient;
-        const vipPityMultiplier = 1 + Math.pow(vipPity, pityExponent) * pityCoefficient;
+        const vipPityMultiplier = 1 + Math.pow(vipPity, vipPityExponent) * vipPityCoefficient;
 
         // Effective weights
         const points = entry.points || 0;
         const trainEffectiveWeight = points * trainPityMultiplier;
         const vipEffectiveWeight = points * vipPityMultiplier;
 
-        // Cooldown check
+        // Train cooldown check
         let onTrainCooldown = false;
         let daysUntilTrainEligible = 0;
         if (entry.last_train_win_date) {
@@ -61,13 +65,24 @@ function calculateWeights(entries, config) {
             }
         }
 
-        // Hard pity flags
+        // VIP cooldown check
+        let onVipCooldown = false;
+        let daysUntilVipEligible = 0;
+        if (entry.last_vip_win_date) {
+            const daysSinceWin = daysBetween(entry.last_vip_win_date, today);
+            if (daysSinceWin < vipCooldownDays) {
+                onVipCooldown = true;
+                daysUntilVipEligible = vipCooldownDays - daysSinceWin;
+            }
+        }
+
+        // Hard pity flags (separate thresholds)
         const isTrainHardPity = trainPity >= hardPityThreshold;
-        const isVipHardPity = vipPity >= hardPityThreshold;
+        const isVipHardPity = vipPity >= vipHardPityThreshold;
 
         // Eligibility
         const eligibleForTrain = !onTrainCooldown && entry.rank <= trainPoolSize;
-        const eligibleForVip = entry.rank <= vipPoolSize;
+        const eligibleForVip = !onVipCooldown && entry.rank <= vipPoolSize;
 
         return {
             ...entry,
@@ -76,11 +91,13 @@ function calculateWeights(entries, config) {
             trainEffectiveWeight,
             vipEffectiveWeight,
             onTrainCooldown,
+            onVipCooldown,
             isTrainHardPity,
             isVipHardPity,
             eligibleForTrain,
             eligibleForVip,
             daysUntilTrainEligible,
+            daysUntilVipEligible,
             // Placeholders - computed in second pass
             trainWinProbability: 0,
             vipWinProbability: 0,

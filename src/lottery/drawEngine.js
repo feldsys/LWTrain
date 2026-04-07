@@ -114,6 +114,10 @@ function performDailyDraw(dateOverride) {
         pityExponent: cfg('pityExponent'),
         hardPityThreshold: cfg('hardPityThreshold'),
         trainCooldownDays: cfg('trainCooldownDays'),
+        vipCooldownDays: cfg('vipCooldownDays'),
+        vipPityCoefficient: cfg('vipPityCoefficient'),
+        vipPityExponent: cfg('vipPityExponent'),
+        vipHardPityThreshold: cfg('vipHardPityThreshold'),
         trainPoolSize: cfg('trainPoolSize'),
         vipPoolSize: cfg('vipPoolSize'),
     };

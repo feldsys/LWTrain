@@ -140,6 +140,26 @@ function getUsedDates() {
     return dates;
 }
 
+/** Dates already used as ranking SOURCE dates (for Step 1 dropdown) */
+function getUsedRankingDates() {
+    const db = getDb();
+    const dates = new Set();
+    const rankingDates = db.prepare('SELECT DISTINCT ranking_date FROM pending_rankings WHERE ranking_date IS NOT NULL AND status != \'skipped\'').all();
+    for (const r of rankingDates) if (r.ranking_date) dates.add(r.ranking_date);
+    return dates;
+}
+
+/** Dates already used as train/draw dates (for Step 2 dropdown) */
+function getUsedTrainDates() {
+    const db = getDb();
+    const dates = new Set();
+    const drawDates = db.prepare('SELECT DISTINCT date FROM draw_history').all();
+    for (const r of drawDates) dates.add(r.date);
+    const pendingDates = db.prepare('SELECT DISTINCT date FROM pending_rankings WHERE status IN (\'confirmed\', \'drawn\')').all();
+    for (const r of pendingDates) dates.add(r.date);
+    return dates;
+}
+
 function confirmPendingRanking(date, userId) {
     getDb().prepare(
         'UPDATE pending_rankings SET status = \'confirmed\', confirmed_by = ?, updated_at = datetime(\'now\') WHERE date = ?'
@@ -211,7 +231,7 @@ module.exports = {
     // Rankings
     insertDailyRanking, updateRankingWeights, getRankingsForDate, deleteRankingsForDate,
     // Pending
-    savePendingRanking, confirmPendingRanking, getPendingRanking, markPendingAsDrawn, skipPendingRanking, getUsedDates,
+    savePendingRanking, confirmPendingRanking, getPendingRanking, markPendingAsDrawn, skipPendingRanking, getUsedDates, getUsedRankingDates, getUsedTrainDates,
     // History
     insertDrawResult, getDrawHistory, getDrawsForDate, getPlayerDrawHistory,
 };

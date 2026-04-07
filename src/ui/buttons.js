@@ -1,5 +1,5 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
-const { getUsedDates } = require('../database/queries');
+const { getUsedRankingDates, getUsedTrainDates } = require('../database/queries');
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -8,7 +8,7 @@ const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frida
  * Shows last 7 days, excludes already used dates.
  */
 function buildRankingDateSelectRow(interactionId) {
-    const usedDates = getUsedDates();
+    const usedDates = getUsedRankingDates();
     const options = [];
     const today = new Date();
     today.setHours(12, 0, 0, 0);
@@ -45,7 +45,7 @@ function buildRankingDateSelectRow(interactionId) {
  * Shows today + 14 days forward, excludes already used dates + the ranking date.
  */
 function buildTrainDateSelectRow(rankingDate, interactionId) {
-    const usedDates = getUsedDates();
+    const usedDates = getUsedTrainDates();
     usedDates.add(rankingDate); // Also exclude the ranking date just selected
     const options = [];
     const today = new Date();
