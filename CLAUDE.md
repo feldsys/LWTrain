@@ -28,7 +28,8 @@ DCBotTrain/
 │   │   ├── config.js         # /train-config - channel, time, pool, pity settings
 │   │   ├── plan.js           # /train-plan - upcoming schedule with winners
 │   │   ├── history.js        # /train-history - past draw results
-│   │   ├── stats.js          # /train-stats - player stats / leaderboard
+│   │   ├── stats.js          # /train-stats - player stats / leaderboard (name autocomplete incl. aliases)
+│   │   ├── players.js        # /train-players - list canonical players + possible-duplicate hints
 │   │   ├── manual-draw.js    # /train-draw - manual draw trigger with date selection
 │   │   ├── redraw.js         # /train-redraw - reuse past ranking (savings week)
 │   │   ├── reset-pity.js     # /train-reset-pity - admin pity reset
