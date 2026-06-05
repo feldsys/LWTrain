@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
-const { getPlayer, getDb } = require('../database/queries');
+const { getPlayer, resolvePlayer } = require('../database/queries');
 const { buildErrorEmbed } = require('../ui/embeds');
 
 module.exports = {
@@ -28,11 +28,12 @@ module.exports = {
             });
         }
 
-        // Check new name doesn't already exist
-        const existing = getPlayer(newName);
-        if (existing) {
+        // Check new name doesn't already exist as a player or as an alias of
+        // another player (an alias of the same player is fine and gets cleaned up).
+        const existing = resolvePlayer(newName);
+        if (existing && existing.id !== player.id) {
             return interaction.reply({
-                embeds: [buildErrorEmbed('Name Taken', `A player named **${newName}** already exists.`)],
+                embeds: [buildErrorEmbed('Name Taken', `**${newName}** already belongs to another player (name or alias).`)],
                 flags: 64,
             });
         }

@@ -55,6 +55,13 @@ function initializeSchema() {
             value   TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS player_aliases (
+            alias       TEXT NOT NULL UNIQUE COLLATE NOCASE,
+            player_id   INTEGER NOT NULL,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
+        );
+
         CREATE TABLE IF NOT EXISTS pending_rankings (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
             date            TEXT NOT NULL UNIQUE,
@@ -74,6 +81,7 @@ function initializeSchema() {
         CREATE INDEX IF NOT EXISTS idx_draw_history_winner ON draw_history(winner_id);
         CREATE INDEX IF NOT EXISTS idx_draw_history_type ON draw_history(draw_type);
         CREATE INDEX IF NOT EXISTS idx_players_name ON players(name);
+        CREATE INDEX IF NOT EXISTS idx_player_aliases_player ON player_aliases(player_id);
     `);
 
     // Migration: add ranking_date column if missing (for existing databases)

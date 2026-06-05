@@ -21,6 +21,8 @@ DCBotTrain/
 │   │   ├── parser.js         # parseRanking(text) → {entries, errors} - flexible regex for pasted rankings
 │   │   ├── weightCalculator.js  # calculateWeights(entries, config) - pity formula, cooldowns, probabilities
 │   │   ├── drawEngine.js     # performDailyDraw(dateStr) - weighted random + hard pity, transactional
+│   │   ├── nameMatcher.js    # normalize + Levenshtein similarity, findCandidates/findDuplicatePairs
+│   │   ├── mergeEngine.js    # performMerge(fromId, intoId) - fold duplicate player into canonical, transactional
 │   │   └── scheduler.js      # node-schedule jobs, countdown, scheduleOneDraw(), staggered backfills
 │   ├── commands/             # Slash commands (auto-loaded by index.js)
 │   │   ├── config.js         # /train-config - channel, time, pool, pity settings
@@ -32,10 +34,11 @@ DCBotTrain/
 │   │   ├── reset-pity.js     # /train-reset-pity - admin pity reset
 │   │   ├── skip-day.js       # /train-skip - skip a day's draw
 │   │   ├── rename.js         # /train-rename - rename a player
+│   │   ├── merge.js          # /train-merge - merge duplicate players (no args = duplicate scanner)
 │   │   └── clear.js          # /train-clear - wipe all data (double confirm)
 │   ├── events/               # Discord event handlers (auto-loaded by index.js)
 │   │   ├── ready.js          # Bot startup, DB init, scheduler init, missed draw recovery
-│   │   ├── messageCreate.js  # Admin channel listener: parse ranking → date selector dropdown
+│   │   ├── messageCreate.js  # Admin channel listener: parse ranking → name reconciliation → date selector dropdown
 │   │   └── interactionCreate.js  # Routes: slash commands, buttons, select menus (date, redraw)
 │   └── ui/
 │       ├── embeds.js         # All EmbedBuilder factories (preview, result, admin debug, countdown, announcement, error)
@@ -53,10 +56,12 @@ DCBotTrain/
 - **Date selector re-parses original message** on selection — no in-memory state between steps
 - **Deduplication** on messageCreate via Set of processed message IDs
 - **Commands prefixed `train-`** to avoid conflicts with other bots
+- **Alias resolution is centralized in `upsertPlayer`/`resolvePlayer`** — every name lookup checks the exact player name first, then `player_aliases`, so name variants never create duplicates. On paste, unrecognized names are reconciled interactively (new player vs. alias of existing) before date selection; a full-roster browser handles names that changed completely (no similarity). Existing duplicates are cleaned up with `/train-merge` (duplicate scanner, or `from`/`into` with autocomplete for arbitrary players).
 
 ## Database Tables
 
 - `players` — name, train/vip pity counters, last win dates, lifetime stats
+- `player_aliases` — alias name → canonical `player_id` (maps OCR/spelling variants & renames to one player)
 - `daily_rankings` — date, player_id, rank, points, denormalized weights for audit
 - `draw_history` — date, type, winner, probabilities, hard pity flag
 - `pending_rankings` — raw text + parsed JSON, status (pending/confirmed/drawn/skipped)

@@ -19,7 +19,25 @@ function getAllConfig() {
 
 // ─── Players ───
 
+// Resolve a name to an existing player WITHOUT creating one.
+// Exact player name wins; otherwise an alias mapping is followed. Returns the
+// player row, or undefined if the name is unknown (i.e. a genuinely new name).
+function resolvePlayer(name) {
+    const direct = getDb().prepare('SELECT * FROM players WHERE name = ? COLLATE NOCASE').get(name);
+    if (direct) return direct;
+    const alias = getDb().prepare('SELECT player_id FROM player_aliases WHERE alias = ? COLLATE NOCASE').get(name);
+    if (alias) return getPlayerById(alias.player_id);
+    return undefined;
+}
+
 function upsertPlayer(name) {
+    // Resolve aliases first so name variants map back to the canonical player
+    // instead of creating duplicates.
+    const resolved = resolvePlayer(name);
+    if (resolved) {
+        getDb().prepare('UPDATE players SET updated_at = datetime(\'now\') WHERE id = ?').run(resolved.id);
+        return getPlayerById(resolved.id);
+    }
     getDb().prepare(
         'INSERT INTO players (name) VALUES (?) ON CONFLICT(name) DO UPDATE SET updated_at = datetime(\'now\')'
     ).run(name);
@@ -79,6 +97,42 @@ function resetPlayerPity(playerId, type) {
 
 function getAllPlayers() {
     return getDb().prepare('SELECT * FROM players ORDER BY name').all();
+}
+
+// ─── Aliases ───
+
+function addAlias(alias, playerId) {
+    getDb().prepare(
+        'INSERT INTO player_aliases (alias, player_id) VALUES (?, ?) ON CONFLICT(alias) DO UPDATE SET player_id = ?'
+    ).run(alias, playerId, playerId);
+}
+
+function removeAlias(alias) {
+    getDb().prepare('DELETE FROM player_aliases WHERE alias = ? COLLATE NOCASE').run(alias);
+}
+
+function getAliasesForPlayer(playerId) {
+    return getDb().prepare('SELECT alias FROM player_aliases WHERE player_id = ? ORDER BY alias').all(playerId).map(r => r.alias);
+}
+
+function getAllAliases() {
+    return getDb().prepare(
+        `SELECT a.alias, a.player_id, p.name AS player_name
+         FROM player_aliases a JOIN players p ON a.player_id = p.id
+         ORDER BY p.name COLLATE NOCASE, a.alias COLLATE NOCASE`
+    ).all();
+}
+
+/** All players, each augmented with an `aliases` array of their alias strings. */
+function getAllPlayersWithAliases() {
+    const players = getAllPlayers();
+    const aliasRows = getDb().prepare('SELECT alias, player_id FROM player_aliases').all();
+    const byPlayer = new Map();
+    for (const r of aliasRows) {
+        if (!byPlayer.has(r.player_id)) byPlayer.set(r.player_id, []);
+        byPlayer.get(r.player_id).push(r.alias);
+    }
+    return players.map(p => ({ ...p, aliases: byPlayer.get(p.id) || [] }));
 }
 
 // ─── Rankings ───
@@ -225,9 +279,11 @@ module.exports = {
     // Config
     getConfig, setConfig, getAllConfig,
     // Players
-    upsertPlayer, getPlayer, getPlayerById, updatePlayerPity,
+    upsertPlayer, resolvePlayer, getPlayer, getPlayerById, updatePlayerPity,
     recordTrainWin, recordVipWin, incrementTrainPity, incrementVipPity,
     resetPlayerPity, getAllPlayers,
+    // Aliases
+    addAlias, removeAlias, getAliasesForPlayer, getAllAliases, getAllPlayersWithAliases,
     // Rankings
     insertDailyRanking, updateRankingWeights, getRankingsForDate, deleteRankingsForDate,
     // Pending

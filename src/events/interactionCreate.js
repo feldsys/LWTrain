@@ -14,6 +14,19 @@ module.exports = {
     name: Events.InteractionCreate,
     async execute(interaction) {
         try {
+            // Handle slash command autocomplete
+            if (interaction.isAutocomplete()) {
+                const command = interaction.client.commands.get(interaction.commandName);
+                if (command && command.autocomplete) {
+                    try {
+                        await command.autocomplete(interaction);
+                    } catch (err) {
+                        console.error(`[AUTOCOMPLETE] /${interaction.commandName}:`, err.message);
+                    }
+                }
+                return;
+            }
+
             // Handle slash commands
             if (interaction.isChatInputCommand()) {
                 const command = interaction.client.commands.get(interaction.commandName);
