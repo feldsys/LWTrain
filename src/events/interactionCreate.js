@@ -2,7 +2,7 @@ const { Events, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discor
 const {
     confirmPendingRanking, getPendingRanking, deleteRankingsForDate,
     skipPendingRanking, getConfig, upsertPlayer, insertDailyRanking,
-    savePendingRanking, getDrawsForDate,
+    replaceDailyRankings, savePendingRanking, getDrawsForDate,
 } = require('../database/queries');
 const { buildErrorEmbed, buildPreviewEmbed, buildDrawAnnouncementEmbed } = require('../ui/embeds');
 const { buildConfirmCancelRow } = require('../ui/buttons');
@@ -209,13 +209,9 @@ async function handleConfirmRanking(interaction) {
     // Confirm the ranking
     confirmPendingRanking(dateStr, interaction.user.id);
 
-    // Store in daily_rankings
+    // Store in daily_rankings (dedupes names that resolve to the same player).
     const parsed = JSON.parse(pending.parsed_json);
-    deleteRankingsForDate(dateStr);
-    for (const entry of parsed) {
-        const player = upsertPlayer(entry.name);
-        insertDailyRanking(dateStr, player.id, entry.rank, entry.points);
-    }
+    const skippedDupes = replaceDailyRankings(dateStr, parsed);
 
     // Disable buttons
     const disabledRow = new ActionRowBuilder().addComponents(
@@ -232,9 +228,12 @@ async function handleConfirmRanking(interaction) {
 
     const drawTimestamp = drawTime ? `<t:${Math.floor(drawTime.getTime() / 1000)}:t>` : 'soon';
 
-    await interaction.followUp(
-        `Ranking for **${weekday} (${dateStr})** confirmed by <@${interaction.user.id}>. Draw scheduled for ${drawTimestamp}.`
-    );
+    let confirmMsg = `Ranking for **${weekday} (${dateStr})** confirmed by <@${interaction.user.id}>. Draw scheduled for ${drawTimestamp}.`;
+    if (skippedDupes.length > 0) {
+        const dupeList = skippedDupes.map(s => `\`${s.name}\` → ${s.canonical}`).join(', ');
+        confirmMsg += `\n⚠️ ${skippedDupes.length} duplicate name(s) skipped (same player after merge): ${dupeList}`;
+    }
+    await interaction.followUp(confirmMsg);
 
     // Send announcement in the public channel
     const announcementId = getConfigValue('announcementChannelId', defaults.announcementChannelId);

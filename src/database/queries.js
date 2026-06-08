@@ -143,6 +143,31 @@ function insertDailyRanking(date, playerId, rank, points) {
     ).run(date, playerId, rank, points);
 }
 
+/**
+ * Replace the rankings for a date from parsed entries: clear the date, upsert
+ * each player, and insert one row per *resolved* player. Two entries that map to
+ * the same canonical player (e.g. two spellings that were later merged) would
+ * violate UNIQUE(date, player_id) — so duplicates are dropped, keeping the first
+ * (best-ranked) occurrence.
+ *
+ * @returns {Array<{name:string, canonical:string}>} entries that were skipped.
+ */
+function replaceDailyRankings(date, parsedEntries) {
+    deleteRankingsForDate(date);
+    const seen = new Set();
+    const skipped = [];
+    for (const entry of parsedEntries) {
+        const player = upsertPlayer(entry.name);
+        if (seen.has(player.id)) {
+            skipped.push({ name: entry.name, canonical: player.name });
+            continue;
+        }
+        seen.add(player.id);
+        insertDailyRanking(date, player.id, entry.rank, entry.points);
+    }
+    return skipped;
+}
+
 function updateRankingWeights(date, playerId, pityMultiplier, effectiveWeight, winProbability) {
     getDb().prepare(
         'UPDATE daily_rankings SET pity_multiplier = ?, effective_weight = ?, win_probability = ? WHERE date = ? AND player_id = ?'
@@ -285,7 +310,7 @@ module.exports = {
     // Aliases
     addAlias, removeAlias, getAliasesForPlayer, getAllAliases, getAllPlayersWithAliases,
     // Rankings
-    insertDailyRanking, updateRankingWeights, getRankingsForDate, deleteRankingsForDate,
+    insertDailyRanking, replaceDailyRankings, updateRankingWeights, getRankingsForDate, deleteRankingsForDate,
     // Pending
     savePendingRanking, confirmPendingRanking, getPendingRanking, markPendingAsDrawn, skipPendingRanking, getUsedDates, getUsedRankingDates, getUsedTrainDates,
     // History

@@ -125,13 +125,13 @@ function performDailyDraw(dateOverride) {
     // Wrap all DB mutations in a single transaction
     const db = getDb();
     const runDraw = db.transaction(() => {
-        // Step 4: Upsert players and insert daily rankings
-        // Clear existing rankings first (they may have been inserted at confirm time)
-        const { deleteRankingsForDate } = require('../database/queries');
-        deleteRankingsForDate(date);
-        for (const entry of parsedEntries) {
-            const player = upsertPlayer(entry.name);
-            insertDailyRanking(date, player.id, entry.rank, entry.points);
+        // Step 4: Upsert players and insert daily rankings (clears the date first).
+        // Dedupe by resolved player id: two entries that map to the same canonical
+        // player (merged name variants) must not both be inserted.
+        const { replaceDailyRankings } = require('../database/queries');
+        const skipped = replaceDailyRankings(date, parsedEntries);
+        for (const s of skipped) {
+            console.warn(`[DRAW] ${date}: "${s.name}" resolves to already-listed player ${s.canonical}, skipped duplicate entry`);
         }
 
         // Step 5: Fetch full rankings joined with player data
